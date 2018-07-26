@@ -1,17 +1,13 @@
 // @flow
 import React, { type ComponentType } from 'react'
-import PropTypes from 'prop-types'
 import hoistStatics from 'hoist-non-react-statics'
-import {
-  CHANNEL,
-  CHANNEL_NEXT,
-  CONTEXT_CHANNEL_SHAPE,
-} from '../models/ThemeProvider'
+import { CHANNEL_NEXT, contextShape } from '../models/ThemeProvider'
+import { EMPTY_OBJECT } from '../utils/empties'
+import getComponentName from '../utils/getComponentName'
 import _isStyledComponent from '../utils/isStyledComponent'
 import determineTheme from '../utils/determineTheme'
 
-const wrapWithTheme = (Component: ComponentType<any>) => {
-  const componentName = Component.displayName || Component.name || 'Component'
+export default (Component: ComponentType<any>) => {
   const isStatelessFunctionalComponent =
     typeof Component === 'function' &&
     // $FlowFixMe TODO: flow for prototype
@@ -22,18 +18,14 @@ const wrapWithTheme = (Component: ComponentType<any>) => {
     _isStyledComponent(Component) || isStatelessFunctionalComponent
 
   class WithTheme extends React.Component<*, *> {
-    static displayName = `WithTheme(${componentName})`
+    static contextTypes = contextShape
+    static displayName = `WithTheme(${getComponentName(Component)})`
     static defaultProps: Object
 
     // NOTE: This is so that isStyledComponent passes for the innerRef unwrapping
     static styledComponentId = 'withTheme'
 
-    static contextTypes = {
-      [CHANNEL]: PropTypes.func,
-      [CHANNEL_NEXT]: CONTEXT_CHANNEL_SHAPE,
-    }
-
-    state: { theme?: ?Object } = {}
+    state: { theme?: ?Object } = EMPTY_OBJECT
     unsubscribeId: number = -1
 
     componentWillMount() {
@@ -45,19 +37,32 @@ const wrapWithTheme = (Component: ComponentType<any>) => {
         themeProp === undefined &&
         process.env.NODE_ENV !== 'production'
       ) {
-        // eslint-disable-next-line no-console
-        console.warn(
-          '[withTheme] You are not using a ThemeProvider nor passing a theme prop or a theme in defaultProps'
-        )
-      } else if (styledContext === undefined && themeProp !== undefined) {
-        this.setState({ theme: themeProp })
-      } else {
-        const { subscribe } = styledContext
-        this.unsubscribeId = subscribe(nextTheme => {
-          const theme = determineTheme(this.props, nextTheme, defaultProps)
-          this.setState({ theme })
-        })
+        if (!_isStyledComponent(Component)) {
+          // eslint-disable-next-line no-console
+          console.warn(
+            '[withTheme] You are not using a ThemeProvider nor passing a theme prop or a theme in defaultProps'
+          )
+        }
       }
+
+      if (styledContext === undefined && themeProp !== undefined) {
+        this.setState({ theme: themeProp })
+      }
+
+      if (styledContext === undefined) {
+        return
+      }
+
+      const { subscribe } = styledContext
+
+      if (typeof subscribe !== 'function') {
+        return
+      }
+
+      this.unsubscribeId = subscribe(nextTheme => {
+        const theme = determineTheme(this.props, nextTheme, defaultProps)
+        this.setState({ theme })
+      })
     }
 
     componentWillReceiveProps(nextProps: {
@@ -89,11 +94,9 @@ const wrapWithTheme = (Component: ComponentType<any>) => {
         delete props.innerRef
       }
 
-      return <Component {...props} />
+      return React.createElement(Component, props)
     }
   }
 
   return hoistStatics(WithTheme, Component)
 }
-
-export default wrapWithTheme

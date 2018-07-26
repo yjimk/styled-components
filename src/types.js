@@ -9,12 +9,20 @@ export type Interpolation =
 
 export type RuleSet = Array<Interpolation>
 
-export type Styles = Array<string> | Object
+export type Styles =
+  | Array<string>
+  | Object
+  | ((executionContext: Object) => Interpolation)
 
 /* eslint-disable no-undef */
 export type Target = string | ComponentType<*>
 
 export type NameGenerator = (hash: number) => string
+
+export type CSSConstructor = (
+  strings: Array<string>,
+  ...interpolations: Array<Interpolation>
+) => RuleSet
 
 export type Flattener = (
   chunks: Array<Interpolation>,
